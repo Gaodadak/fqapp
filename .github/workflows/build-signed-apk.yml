@@ -1,0 +1,110 @@
+name: Build signed APK (AOSP testkey)
+
+# 自用改造包出包：不跑上游那套 lint / test / format / windows / linux 门禁，
+# 只做一件事——用旧包那把 AOSP testkey 签出能覆盖安装的 arm64 APK。
+# 工具链版本与上游 android-apk.yml 保持一致。
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+    paths:
+      - 'lib/**'
+      - 'android/**'
+      - 'native/**'
+      - 'rust/**'
+      - 'assets/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'flutter_rust_bridge.yaml'
+      - 'scripts/build_rust_backend.sh'
+      - 'signing/**'
+      - '.github/workflows/build-signed-apk.yml'
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.50.0'
+  NDK_VERSION: '28.2.13676358'
+  CMAKE_VERSION: '3.22.1'
+  BUILD_TOOLS_VERSION: '36.0.0'
+  # 与旧包同一把 key（AOSP 公开 testkey，CN=Android）。
+  RELEASE_KEYSTORE_FILE: ${{ github.workspace }}/signing/testkey.jks
+  RELEASE_STORE_PASSWORD: android
+  RELEASE_KEY_ALIAS: android
+  RELEASE_KEY_PASSWORD: android
+  # 旧包签名证书的 SHA-256，构建末尾硬校验，签错就直接失败。
+  RELEASE_SIGNER_SHA256: 'a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc'
+  GRADLE_OPTS: >-
+    -Dorg.gradle.jvmargs="-Xmx1536m -XX:MaxMetaspaceSize=768m -XX:ReservedCodeCacheSize=256m"
+    -Dorg.gradle.workers.max=2 -Dorg.gradle.daemon=false
+  CMAKE_BUILD_PARALLEL_LEVEL: '2'
+  CARGO_BUILD_JOBS: '2'
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.99.1'
+          targets: aarch64-linux-android,armv7-linux-androideabi
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install NDK / CMake / build-tools
+        run: |
+          sdkmanager_bin="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "$sdkmanager_bin" --licenses < <(yes) > /dev/null || true
+          need=()
+          [ -d "$ANDROID_HOME/ndk/$NDK_VERSION" ] || need+=("ndk;$NDK_VERSION")
+          [ -d "$ANDROID_HOME/cmake/$CMAKE_VERSION" ] || need+=("cmake;$CMAKE_VERSION")
+          [ -d "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION" ] || need+=("build-tools;$BUILD_TOOLS_VERSION")
+          if [ "${#need[@]}" -gt 0 ]; then "$sdkmanager_bin" "${need[@]}"; fi
+          printf 'ANDROID_NDK_HOME=%s/ndk/%s\n' "$ANDROID_HOME" "$NDK_VERSION" >> "$GITHUB_ENV"
+          flutter config --android-sdk "$ANDROID_HOME" --no-analytics
+
+      - name: Resolve Dart dependencies
+        run: flutter pub get
+
+      - name: Compile the Rust core for Android (ARM64 + ARMv7)
+        # 绑定已入库，跳过 codegen，省掉一次 cargo install。
+        run: bash scripts/build_rust_backend.sh --skip-codegen
+
+      - name: Build the release APK (arm64, testkey-signed)
+        run: flutter build apk --release --target-platform android-arm64
+
+      - name: Verify signing certificate and label
+        run: |
+          set -o pipefail
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          ls -l "$apk"
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner" verify --print-certs "$apk" | tee /tmp/certs.txt
+          actual=$(tr -d ':' < /tmp/certs.txt | grep -i 'Signer #1 certificate SHA-256 digest' | awk '{print tolower($NF)}')
+          echo "signer=$actual"
+          [ "$actual" = "$RELEASE_SIGNER_SHA256" ] || { echo "::error::签名不是旧包的 testkey（期望 $RELEASE_SIGNER_SHA256）"; exit 1; }
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/aapt2" dump badging "$apk" | head -4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jinshupu-arm64-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
