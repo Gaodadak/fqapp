@@ -249,6 +249,10 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
   bool _visible = true;
   bool _seeking = false;
   bool _resumeAfterSeek = false;
+
+  /// 拖动起点的 pause 请求。[_finishSeek] 必须等它落地才 seek/恢复播放，
+  /// 否则 native 侧的 pause 会晚到，把松手后的播放又按回暂停。
+  Future<void>? _seekPause;
   bool _modalOpen = false;
   bool _panelOpen = false;
 
@@ -791,7 +795,12 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
   }
 
   void _startSeek(double value) {
-    if (!_ready) return;
+    if (!_ready) {
+      // 未就绪时不进入拖动状态：预览值必须清掉，否则进度条会永久停在
+      // 手指位置、不再跟随播放（观感就是"拖一下就卡住"）。
+      _seekValue.value = null;
+      return;
+    }
     _endBoost();
     ++_interaction;
     _hideTimer?.cancel();
@@ -800,31 +809,59 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
       _seeking = true;
       _seekValue.value = value;
     });
-    unawaited(_control((player) => player.pause()));
+    // 拖动即暂停（官方语义），暂停的 future 存下来给 [_finishSeek] 等待。
+    _seekPause = _control((player) => player.pause());
+    unawaited(_seekPause!);
+  }
+
+  /// 拖动中的预览值：只有真正进入拖动状态才写，早退的起点不留残影。
+  void _previewSeek(double value) {
+    if (!_seeking) return;
+    _seekValue.value = value;
   }
 
   Future<void> _finishSeek(double value) async {
     final player = widget.player;
-    if (player == null || !_seeking) return;
+    if (player == null) return;
+    if (!_seeking) {
+      // 拖动起点未进入 seek 状态（未就绪）：清掉预览，别留下卡住的进度。
+      _seekValue.value = null;
+      return;
+    }
     final interaction = _interaction;
+    // 松手是否恢复播放，只看拖动开始时的播放意图——拖动本身已经把
+    // playWhenReady 按停，用松手后的状态回推必然得到"不恢复"。
+    final resume = _resumeAfterSeek && _appActive;
     final target = Duration(
       milliseconds: (widget.duration.inMilliseconds * value.clamp(0.0, 1.0))
           .round(),
     );
     try {
-      await player.seek(target);
-      if (!mounted || widget.player != player || interaction != _interaction) {
-        return;
+      // 顺序：拖动起点的 pause 落地 → seek → 需要时 play。不等待那条
+      // pause 的话它会晚于 seek/play 到达，把播放重新按停（横屏拖动
+      // "一拖就暂停、松手也不走"的真因）。兜底 2 秒超时：暂停通道异常时
+      // 不能让松手后的 seek 被拖住。
+      final pause = _seekPause;
+      _seekPause = null;
+      if (pause != null) {
+        await pause.timeout(const Duration(seconds: 2), onTimeout: () {});
       }
-      // 进度条拖动的收尾 seek：只报真正落盘的目标。
-      widget.onSeeked?.call(target);
-      if (_resumeAfterSeek && _appActive && _ready) await player.play();
+      await player.seek(target);
+      if (!mounted || widget.player != player) return;
+      if (interaction == _interaction) {
+        // 进度条拖动的收尾 seek：只报真正落盘的目标。
+        widget.onSeeked?.call(target);
+        if (resume && _ready) await player.play();
+      }
     } catch (error) {
       if (mounted && widget.player == player && interaction == _interaction) {
         widget.onError(error);
       }
     } finally {
-      if (mounted && widget.player == player && interaction == _interaction) {
+      // 收尾复位不受 interaction 影响：拖动一旦结束就必须退出 _seeking，
+      // 否则单击唤控件、横滑调进度都会被 `_seeking` 早退挡住，进度条也
+      // 永远停在手指位置。
+      if (mounted && widget.player == player) {
         setState(() {
           _seeking = false;
           _seekValue.value = null;
@@ -837,15 +874,31 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
   void _cancelSeek({bool resume = true}) {
     _dragSeekOrigin = null;
     _dragSeekActive = false;
-    if (!_seeking) _seekValue.value = null;
-    if (!_seeking) return;
+    if (!_seeking) {
+      _seekValue.value = null;
+      _seekPause = null;
+      return;
+    }
     ++_interaction;
     final shouldResume = resume && _resumeAfterSeek && _appActive;
     setState(() {
       _seeking = false;
       _seekValue.value = null;
     });
-    if (shouldResume) unawaited(_control((player) => player.play()));
+    if (shouldResume) {
+      // 同样是顺序问题：拖动起点的 pause 落地之后才恢复播放，否则这
+      // 条 pause 会把刚发出的 play 按掉（手势被打断时的"停住不走"）。
+      unawaited(() async {
+        final pause = _seekPause;
+        _seekPause = null;
+        if (pause != null) {
+          await pause.timeout(const Duration(seconds: 2), onTimeout: () {});
+        }
+        await _control((player) => player.play());
+      }());
+    } else {
+      _seekPause = null;
+    }
     _scheduleHide();
   }
 
@@ -1909,7 +1962,7 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
                         enabled: durationMs > 0,
                         seeking: _seeking,
                         onStart: _startSeek,
-                        onChanged: (value) => _seekValue.value = value,
+                        onChanged: _previewSeek,
                         onEnd: (value) => unawaited(_finishSeek(value)),
                         onCancel: _cancelSeek,
                         trackWidth: catalogStyle ? 4 : 2,
@@ -2867,7 +2920,7 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
                     enabled: widget.duration > Duration.zero,
                     seeking: _seeking,
                     onStart: _startSeek,
-                    onChanged: (value) => _seekValue.value = value,
+                    onChanged: _previewSeek,
                     onEnd: (value) => unawaited(_finishSeek(value)),
                     onCancel: _cancelSeek,
                     trackWidth: 4,

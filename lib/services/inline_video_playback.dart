@@ -371,9 +371,10 @@ class InlineVideoPlayback {
       }
       activeVid.value = episodes[index].itemId;
       var source = await _sources.request(episodes[index]).future;
-      // 会话内记住的画质选择（官方=引擎当前档）：同一集再次激活时沿用。
-      final chosen = _chosen[episodes[index].itemId];
-      if (chosen != null) source = source.withVariant(chosen);
+      // 会话内锁定的画质（官方=引擎当前档）：切集沿用同一档；这一集缺该档
+      // 时退到不高于它的最高档，不回到最高清（省流不该被连播冲掉）。
+      final locked = EpisodeVariant.aligned(source.variants, _lockedVariant);
+      if (locked != null) source = source.withVariant(locked);
       _currentSource = source;
       if (!_current(generation)) return;
       final uri = Uri.tryParse(source.url);
@@ -436,10 +437,9 @@ class InlineVideoPlayback {
   /// list. Null while nothing plays.
   EpisodeSource? _currentSource;
 
-  /// Session-level quality choice per episode id. The official client keeps
-  /// the resolution on the engine instance for the session only; there is no
-  /// cross-launch preference evidence, so none is stored here either.
-  final Map<String, EpisodeVariant> _chosen = {};
+  /// Session-level locked rendition. 官方把档位留在引擎实例上：换集沿用
+  /// 同一档、不回到最高清——省流模式锁住 360P 要的就是这个。
+  EpisodeVariant? _lockedVariant;
 
   /// Renditions of the playing episode, best-quality first. Empty while
   /// nothing plays or the upstream offered a single stream (the panel hides
@@ -474,7 +474,7 @@ class InlineVideoPlayback {
     _detachSubscriptions();
     if (identical(_player, player)) _player = null;
     _currentSource = source.withVariant(variant);
-    _chosen[series.id] = variant;
+    _lockedVariant = variant;
     // A replacement texture must not inherit the previous rendition's frame,
     // size, or rotation. The layer keeps its cover until the new stream is ready.
     textureId.value = null;

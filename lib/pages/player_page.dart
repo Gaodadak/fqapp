@@ -956,9 +956,10 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
         final request = _sources.request(episode, refresh: refresh);
         trace.source = request.origin.name;
         var online = await request.future;
-        // 会话内记住的画质选择（官方=引擎当前档）：同一集重新加载时沿用。
-        final chosen = _chosen[episode.itemId];
-        if (chosen != null) online = online.withVariant(chosen);
+        // 会话内锁定的画质（官方=引擎当前档）：换集、重新加载都沿用；这一集
+        // 没有该档时退到不高于它的最高档，而不是悄悄回到最高清。
+        final locked = EpisodeVariant.aligned(online.variants, _lockedVariant);
+        if (locked != null) online = online.withVariant(locked);
         source = online;
       }
       if (!_current(generation)) return;
@@ -1111,11 +1112,10 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   }
 
   /// The source the current player was created from (includes the rendition
-  /// list), and the session-level quality choice per episode id. The official
-  /// client keeps the resolution on the engine for the session only; no
-  /// cross-launch preference exists there, so none is stored here either.
+  /// list). The quality choice is session-level and sticks across episodes:
+  /// 选过 360P 之后连播不许弹回最高清（省流），官方也是把当前档留在引擎上。
   EpisodeSource? _currentSource;
-  final Map<String, EpisodeVariant> _chosen = {};
+  EpisodeVariant? _lockedVariant;
 
   /// 听书页回传的续看锚点 (集号, 进度)：[_openListenMode] 在自动连播跨集
   /// 时设置，只对匹配集的下一次 [_loadVideo] 生效一次——此时本地历史
@@ -1138,7 +1138,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     final resumeMs = resume.inMilliseconds;
     final wasPlaying = _playing;
     final episode = widget.eps[_index];
-    _chosen[episode.itemId] = variant;
+    _lockedVariant = variant;
     _currentSource = source.withVariant(variant);
     final release = _teardownPlayer();
     NativePlayer? candidate;

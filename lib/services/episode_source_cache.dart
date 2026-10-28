@@ -16,6 +16,47 @@ class EpisodeVariant {
     required this.keyHex,
     required this.height,
   });
+
+  /// 把会话里锁定的档位对齐到某一集自己的流列表上：跨集的 URL 必然不同，
+  /// 只有档名与高度可比。顺序是 同名 → 同高度（唯一命中）→ 不高于锁定档
+  /// 的最高档 → 最低档。
+  ///
+  /// 上游这一集没有该档时，宁可退到更省的流，也不悄悄弹回最高清——省流
+  /// 模式下「跳到下一集又跑回 720P」就是少了这步回退。
+  static EpisodeVariant? aligned(
+    List<EpisodeVariant> variants,
+    EpisodeVariant? locked,
+  ) {
+    if (locked == null || variants.isEmpty) return null;
+    final name = _nameKey(locked.name);
+    if (name.isNotEmpty) {
+      for (final variant in variants) {
+        if (_nameKey(variant.name) == name) return variant;
+      }
+    }
+    if (locked.height > 0) {
+      final same = variants.where((v) => v.height == locked.height).toList();
+      if (same.length == 1) return same.first;
+      final lower = variants
+          .where((v) => v.height > 0 && v.height < locked.height)
+          .toList();
+      if (lower.isNotEmpty) {
+        lower.sort((a, b) => b.height.compareTo(a.height));
+        return lower.first;
+      }
+      final known = variants.where((v) => v.height > 0).toList();
+      if (known.isNotEmpty) {
+        known.sort((a, b) => a.height.compareTo(b.height));
+        return known.first;
+      }
+    }
+    return null;
+  }
+
+  static final _spaces = RegExp(r'\s+');
+
+  static String _nameKey(String name) =>
+      name.replaceAll(_spaces, '').toLowerCase();
 }
 
 class EpisodeSource {
