@@ -95,7 +95,7 @@ jobs:
           # Placed right after checkout so the failure-diagnostics upload can
           # use the same identifiers even when the build fails early.
           # Artifact names reject '/', which a PR ref (123/merge) contains,
-          # so sanitize the ref. run_number stays so re‑runs never collide.
+          # so sanitize the ref. run_number stays so re-runs never collide.
           printf 'safe_ref=%s\n' "${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
           printf 'short_sha=%s\n' "${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
       - name: Validate version tag
@@ -103,7 +103,7 @@ jobs:
         run: |
           # A version tag must be a plain semver triple (v1.2.3): the APK's
           # versionName is compared against the tag below, and anything else
-          # (v1.2, v1.2.3‑rc.1, a typo) would silently ship a mismatched build.
+          # (v1.2, v1.2.3-rc.1, a typo) would silently ship a mismatched build.
           if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Version tag must match v<major>.<minor>.<patch> (got '$GITHUB_REF_NAME')" >&2
             exit 1
@@ -127,16 +127,16 @@ jobs:
           path: ~/.cargo/bin/flutter_rust_bridge_codegen
           key: frb-codegen-${{ env.FRB_VERSION }}-${{ runner.os }}-${{ hashFiles('app/rust/Cargo.lock') }}
       - name: Install flutter_rust_bridge_codegen
-        if: steps.frb-cache.outputs.cache‑hit != 'true'
+        if: steps.frb-cache.outputs.cache-hit != 'true'
         run: cargo install flutter_rust_bridge_codegen --version "$FRB_VERSION" --locked
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
-          cache‑dependency‑path: |
+          cache-dependency-path: |
             app/android/**/*.gradle.kts
-            app/android/gradle/wrapper/gradle‑wrapper.properties
+            app/android/gradle/wrapper/gradle-wrapper.properties
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
@@ -147,12 +147,12 @@ jobs:
           cache: true
       - name: Install Android SDK components
         run: |
-          sdkmanager_bin="$ANDROID_HOME/cmdline‑tools/latest/bin/sdkmanager"
+          sdkmanager_bin="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           "$sdkmanager_bin" --licenses < <(yes) > /dev/null
-          "$sdkmanager_bin" "platforms;android‑36" "build‑tools;$BUILD_TOOLS_VERSION" \
+          "$sdkmanager_bin" "platforms;android-36" "build-tools;$BUILD_TOOLS_VERSION" \
             "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION"
           printf 'ANDROID_NDK_HOME=%s/ndk/%s\n' "$ANDROID_HOME" "$NDK_VERSION" >> "$GITHUB_ENV"
-          flutter config --android‑sdk "$ANDROID_HOME" --no‑analytics
+          flutter config --android-sdk "$ANDROID_HOME" --no-analytics
       - name: Check the Web assets, audio diagnostics, Rust build scripts, and .so freshness
         run: >-
           node --test test/web_assets_test.cjs
@@ -160,17 +160,17 @@ jobs:
           test/build_rust_backend_scripts_test.cjs
           test/check_so_freshness_test.cjs
       - name: Resolve Dart package dependencies
-        run: flutter pub get --enforce‑lockfile
+        run: flutter pub get --enforce-lockfile
       - name: Rust formatting
         run: |
           mapfile -t sources < <(
-            git ls‑files -- 'rust/**/*.rs' 'rust/*.rs' | grep -v 'frb_generated\.rs$'
+            git ls-files -- 'rust/**/*.rs' 'rust/*.rs' | grep -v 'frb_generated\.rs$'
           )
           if [ "${#sources[@]}" -eq 0 ]; then
-            echo 'No hand‑written Rust sources found; refusing to pass an empty gate.' >&2
+            echo 'No hand-written Rust sources found; refusing to pass an empty gate.' >&2
             exit 1
           fi
-          printf 'Checking %d hand‑written Rust sources (generated bindings excluded).\n' \
+          printf 'Checking %d hand-written Rust sources (generated bindings excluded).\n' \
             "${#sources[@]}"
           failed=0
           for source in "${sources[@]}"; do
@@ -181,22 +181,22 @@ jobs:
           done
           exit "$failed"
       - name: Rust lints
-        run: cargo clippy --manifest‑path rust/Cargo.toml --locked --all‑targets -- -D warnings
+        run: cargo clippy --manifest-path rust/Cargo.toml --locked --all-targets -- -D warnings
       - name: Rust tests (signing, device crypto, protocol vectors)
-        run: cargo test --manifest‑path rust/Cargo.toml --locked
+        run: cargo test --manifest-path rust/Cargo.toml --locked
       - name: Build the host Rust core for the FFI integration tests
-        run: cargo build --manifest‑path rust/Cargo.toml
+        run: cargo build --manifest-path rust/Cargo.toml
       - name: Host FFI integration tests (Dart -> FRB -> Rust, mock upstream)
-        run: bash scripts/run_rust_host_tests.sh --skip‑build
+        run: bash scripts/run_rust_host_tests.sh --skip-build
       - name: Generate the bridge bindings and verify they are reproducible
         run: |
-          mkdir -p build/ci‑artifacts
+          mkdir -p build/ci-artifacts
           digest() {
             find rust/src/frb_generated.rs lib/src/rust -type f -print0 \
               | sort -z | xargs -0 sha256sum | sha256sum | cut -d ' ' -f 1
           }
           before="$(digest)"
-          flutter_rust_bridge_codegen generate --config‑file flutter_rust_bridge.yaml
+          flutter_rust_bridge_codegen generate --config-file flutter_rust_bridge.yaml
           after="$(digest)"
           printf 'generated bindings digest (before): %s\n' "$before"
           printf 'generated bindings digest (after):  %s\n' "$after"
@@ -206,24 +206,24 @@ jobs:
           fi
           {
             printf 'bindings_sha256=%s\n' "$after"
-          } > build/ci‑artifacts/bindings‑digest.txt
+          } > build/ci-artifacts/bindings-digest.txt
       - name: Compile the Rust core for Android ARM64
-        run: bash scripts/build_rust_backend.sh --skip‑codegen
+        run: bash scripts/build_rust_backend.sh --skip-codegen
       - name: Check the Android Rust core library
         run: |
-          mkdir -p build/ci‑artifacts
-          so=android/app/src/main/jniLibs/arm64‑v8a/libfqapi_core.so
+          mkdir -p build/ci-artifacts
+          so=android/app/src/main/jniLibs/arm64-v8a/libfqapi_core.so
           test -s "$so"
-          nm_bin="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux‑x86_64/bin/llvm‑nm"
-          "$nm_bin" --dynamic --defined‑only "$so" > build/ci‑artifacts/rust‑core‑symbols.txt
+          nm_bin="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+          "$nm_bin" --dynamic --defined-only "$so" > build/ci-artifacts/rust-core-symbols.txt
           for symbol in frb_get_rust_content_hash store_dart_post_cobject; do
-            if ! grep -Eq "[[:space:]]${symbol}$" build/ci‑artifacts/rust‑core‑symbols.txt; then
+            if ! grep -Eq "[[:space:]]${symbol}$" build/ci-artifacts/rust-core-symbols.txt; then
               echo "Missing Rust bridge symbol: $symbol" >&2
               exit 1
             fi
           done
-          readelf_bin="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux‑x86_64/bin/llvm‑readelf"
-          "$readelf_bin" -l "$so" > build/ci‑artifacts/rust‑core‑program‑headers.txt
+          readelf_bin="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          "$readelf_bin" -l "$so" > build/ci-artifacts/rust-core-program-headers.txt
           node scripts/check_native_alignment.cjs "$so"
       # ============ 跳过release签名恢复步骤，Debug包使用系统调试密钥 ============
       - name: Skip release signing for Debug build
@@ -233,21 +233,21 @@ jobs:
           echo "Debug build: using auto debug keystore, skip release keystore restore"
       - name: Check Flutter application
         run: |
-          flutter analyze --no‑pub
-          flutter test --no‑pub --concurrency=2 --reporter compact
+          flutter analyze --no-pub
+          flutter test --no-pub --concurrency=2 --reporter compact
       # ============ 修改这里：编译 debug ARM64 APK ============
       - name: Compile ARM64 Debug APK
-        run: flutter build apk --debug --target‑platform android‑arm64 --no‑pub
+        run: flutter build apk --debug --target-platform android-arm64 --no-pub
       - name: Test Android runtime boundaries
-        working‑directory: app/android
-        run: ./gradlew :app:testDebugUnitTest --no‑daemon --max‑workers=2
+        working-directory: app/android
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --max-workers=2
       # ============ 校验APK，允许未正式签名（debug属于调试签名） ============
       - name: Verify APK contents and alignment
         env:
           HAS_RELEASE_SIGNING: ${{ steps.signing.outputs.has_release_signing }}
         run: |
           case "$HAS_RELEASE_SIGNING" in
-            false)  signer_args=(--allow‑unsigned) ;;
+            false)  signer_args=(--allow-unsigned) ;;
             *)
               echo "::error::signing step wrong output '$HAS_RELEASE_SIGNING'" >&2
               exit 1
@@ -264,67 +264,67 @@ jobs:
           fi
           version_args=()
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            version_args=(--expected‑version‑name "${GITHUB_REF_NAME#v}")
+            version_args=(--expected-version-name "${GITHUB_REF_NAME#v}")
           fi
-          # Debug包输出路径：build/app/outputs/flutter‑apk/app‑debug.apk
+          # Debug包输出路径：build/app/outputs/flutter-apk/app-debug.apk
           python3 scripts/verify_android_apk.py \
-            --apk build/app/outputs/flutter‑apk/app‑debug.apk \
-            --build‑tools "$ANDROID_HOME/build‑tools/$BUILD_TOOLS_VERSION" \
+            --apk build/app/outputs/flutter-apk/app-debug.apk \
+            --build-tools "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION" \
             "${signer_args[@]}" \
             "${version_args[@]}" \
-            --report‑dir build/ci‑artifacts/verification
-          cp build/app/outputs/flutter‑apk/app‑debug.apk build/ci‑artifacts/app‑debug.apk
+            --report-dir build/ci-artifacts/verification
+          cp build/app/outputs/flutter-apk/app-debug.apk build/ci-artifacts/app-debug.apk
           {
             printf 'App commit: %s\n' "$GITHUB_SHA"
             printf 'Rust core: fqapi_core (flutter_rust_bridge %s)\n' "$FRB_VERSION"
-            printf 'Rust core library SHA‑256: '
-            sha256sum android/app/src/main/jniLibs/arm64‑v8a/libfqapi_core.so
+            printf 'Rust core library SHA-256: '
+            sha256sum android/app/src/main/jniLibs/arm64-v8a/libfqapi_core.so
             printf 'Build type: DEBUG (auto debug keystore, can install directly)\n'
             printf 'NDK: %s\nCMake: %s\nAndroid Build Tools: %s\n' "$NDK_VERSION" "$CMAKE_VERSION" "$BUILD_TOOLS_VERSION"
             flutter --version
             cargo --version
             rustc --version
             java -version 2>&1
-          } > build/ci‑artifacts/build‑info.txt
+          } > build/ci-artifacts/build-info.txt
       - name: Upload Debug APK and verification reports
         id: artifact
-        uses: actions/upload‑artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: fqapp‑debug‑arm64‑${{ steps.artifact‑ids.outputs.safe_ref }}‑${{ steps.artifact‑ids.outputs.short_sha }}‑${{ github.run_number }}
-          retention‑days: 14
-          if‑no‑files‑found: error
-          compression‑level: 0
+          name: fqapp-debug-arm64-${{ steps.artifact-ids.outputs.safe_ref }}-${{ steps.artifact-ids.outputs.short_sha }}-${{ github.run_number }}
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
           path: |
-            app/build/ci‑artifacts/app‑debug.apk
-            app/build/ci‑artifacts/build‑info.txt
-            app/build/ci‑artifacts/rust‑core‑symbols.txt
-            app/build/ci‑artifacts/rust‑core‑program‑headers.txt
-            app/build/ci‑artifacts/verification/*.json
-            app/build/ci‑artifacts/verification/*.sha256
-            app/build/ci‑artifacts/verification/*.log
+            app/build/ci-artifacts/app-debug.apk
+            app/build/ci-artifacts/build-info.txt
+            app/build/ci-artifacts/rust-core-symbols.txt
+            app/build/ci-artifacts/rust-core-program-headers.txt
+            app/build/ci-artifacts/verification/*.json
+            app/build/ci-artifacts/verification/*.sha256
+            app/build/ci-artifacts/verification/*.log
       - name: Retain diagnostics if a build or APK check fails
         if: failure()
-        uses: actions/upload‑artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: fqapp‑ap‑diagnostics‑${{ steps.artifact‑ids.outputs.safe_ref }}‑${{ steps.artifact‑ids.outputs.short_sha }}‑${{ github.run_number }}
-          retention‑days: 7
-          if‑no‑files‑found: ignore
+          name: fqapp-ap-diagnostics-${{ steps.artifact-ids.outputs.safe_ref }}-${{ steps.artifact-ids.outputs.short_sha }}-${{ github.run_number }}
+          retention-days: 7
+          if-no-files-found: ignore
           path: |
-            app/build/ci‑artifacts/rust‑core‑symbols.txt
-            app/build/ci‑artifacts/rust‑core‑program‑headers.txt
-            app/build/ci‑artifacts/verification/*.json
-            app/build/ci‑artifacts/verification/*.log
+            app/build/ci-artifacts/rust-core-symbols.txt
+            app/build/ci-artifacts/rust-core-program-headers.txt
+            app/build/ci-artifacts/verification/*.json
+            app/build/ci-artifacts/verification/*.log
       - name: Write download summary
         env:
-          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact‑url }}
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
           HAS_RELEASE_SIGNING: ${{ steps.signing.outputs.has_release_signing }}
         run: |
           {
             printf '[下载 ARM64 DEBUG APK 和校验报告](%s)\n\n' "$ARTIFACT_URL"
             printf 'App commit: `%s`  \n' "$GITHUB_SHA"
             printf 'Rust core: `fqapi_core` (flutter_rust_bridge `%s`)\n\n' "$FRB_VERSION"
-            printf 'Rust core library SHA‑256: `%s`\n\n' \
-              "$(sha256sum android/app/src/main/jniLibs/arm64‑v8a/libfqapi_core.so | cut -d ' ' -f 1)"
+            printf 'Rust core library SHA-256: `%s`\n\n' \
+              "$(sha256sum android/app/src/main/jniLibs/arm64-v8a/libfqapi_core.so | cut -d ' ' -f 1)"
             printf '构建类型：DEBUG调试包（系统默认调试签名，可以直接安装安卓设备）\n\n'
             printf '⚠️注意：Debug包不能覆盖安装原作者的正式签名Release包，安装前需要卸载旧版本。\n'
           } >> "$GITHUB_STEP_SUMMARY"
