@@ -68,7 +68,7 @@ env:
   CMAKE_VERSION: '3.22.1'
   BUILD_TOOLS_VERSION: '36.0.0'
   RUST_TARGET: 'aarch64-linux-android'
-  # Certificate the release APK must carry. We skip release sign check for debug build
+  # 原作者正式 release 证书指纹：fork 自带密钥时用它钉住；否则只做构建期自签。
   RELEASE_SIGNER_SHA256: 'e8471cd8a935fd71fd8197355b5558d245449d5bc8294f60f88616f60451c550'
   FQAPP_USE_MAVEN_MIRRORS: 'false'
   GRADLE_OPTS: '-Dorg.gradle.jvmargs="-Xmx1536m -XX:MaxMetaspaceSize=768m -XX:ReservedCodeCacheSize=256m" -Dorg.gradle.workers.max=2 -Dorg.gradle.daemon=false'
@@ -225,31 +225,73 @@ jobs:
           readelf_bin="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
           "$readelf_bin" -l "$so" > build/ci-artifacts/rust-core-program-headers.txt
           node scripts/check_native_alignment.cjs "$so"
-      # ============ 跳过release签名恢复步骤，Debug包使用系统调试密钥 ============
-      - name: Skip release signing for Debug build
+      # 原作者设计（上游 ch6vip/fqapp）：contributor/fork 拿不到 release keystore，
+      # 这里不硬失败；提供密钥时恢复并校验正式证书，没提供时用构建期临时密钥自签，
+      # 保证 release 包能正常产出。校验一律按 release 标准（需要 AOT 的 libapp.so）。
+      - name: Restore the release signing identity
         id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          printf 'has_release_signing=false\n' >> "$GITHUB_OUTPUT"
-          echo "Debug build: using auto debug keystore, skip release keystore restore"
+          umask 077
+          signing_path="$RUNNER_TEMP/fqapp-release.jks"
+          missing=()
+          for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::warning::No release signing secrets (%s); signing the release build with a throwaway CI keystore. Re-sign with your own key before distributing.\n' \
+              "$(IFS=,; printf '%s' "${missing[*]}")"
+            STORE_PASSWORD=fqappbuildci
+            KEY_ALIAS=fqapp-build
+            KEY_PASSWORD=fqappbuildci
+            keytool -genkeypair -v -keystore "$signing_path" \
+              -storepass "$STORE_PASSWORD" -keypass "$KEY_PASSWORD" \
+              -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=fqapp CI build, OU=ci, O=fqapp, L=ci, ST=ci, C=CN" >/dev/null 2>&1
+            test -s "$signing_path"
+          else
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$signing_path"
+            actual_signer="$(keytool -exportcert -keystore "$signing_path" \
+              -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" | sha256sum | cut -d ' ' -f 1)"
+            if [ "$actual_signer" != "$RELEASE_SIGNER_SHA256" ]; then
+              echo 'The signing secret does not contain the expected release certificate.' >&2
+              echo "::error::Expected $RELEASE_SIGNER_SHA256 but the secret holds $actual_signer" >&2
+              exit 1
+            fi
+            printf 'has_release_signing=true\n' >> "$GITHUB_OUTPUT"
+            printf 'Verified release signing certificate: %s\n' "$actual_signer"
+          fi
+          {
+            printf 'RELEASE_KEYSTORE_FILE=%s\n' "$signing_path"
+            printf 'RELEASE_STORE_PASSWORD=%s\n' "$STORE_PASSWORD"
+            printf 'RELEASE_KEY_ALIAS=%s\n' "$KEY_ALIAS"
+            printf 'RELEASE_KEY_PASSWORD=%s\n' "$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
       - name: Check Flutter application
         run: |
           flutter analyze --no-pub
           flutter test --no-pub --concurrency=2 --reporter compact
-      # ============ 修改这里：编译 debug ARM64 APK ============
-      - name: Compile ARM64 Debug APK
-        run: flutter build apk --debug --target-platform android-arm64 --no-pub
+      # 原作者 AGENTS.md 第 4 条 / 上游 CI：release 构建
+      # （debug 包不含 AOT 的 lib/arm64-v8a/libapp.so，校验必然失败）
+      - name: Compile ARM64 Release APK
+        run: flutter build apk --release --target-platform android-arm64 --no-pub
       - name: Test Android runtime boundaries
         working-directory: app/android
         run: ./gradlew :app:testDebugUnitTest --no-daemon --max-workers=2
-      # ============ 校验APK，允许未正式签名（debug属于调试签名） ============
+      # ============ 校验（release 标准）：有正式密钥则钉证书，否则按非正式签名放过签名项 ============
       - name: Verify APK contents and alignment
         env:
           HAS_RELEASE_SIGNING: ${{ steps.signing.outputs.has_release_signing }}
         run: |
           case "$HAS_RELEASE_SIGNING" in
-            false)  signer_args=(--allow-unsigned) ;;
+            true)  signer_args=(--expected-signer-sha256 "$RELEASE_SIGNER_SHA256") ;;
+            false) signer_args=(--allow-unsigned) ;;
             *)
-              echo "::error::signing step wrong output '$HAS_RELEASE_SIGNING'" >&2
+              echo "::error::signing step did not report has_release_signing (got '$HAS_RELEASE_SIGNING')" >&2
               exit 1
               ;;
           esac
@@ -259,43 +301,47 @@ jobs:
             highest_version="${highest_tag#v}"
             lowest="$(printf '%s\n%s\n' "$version_name" "$highest_version" | sort -V | head -1)"
             if [ "$lowest" = "$version_name" ] && [ "$version_name" != "$highest_version" ]; then
-              echo "::warning::pubspec version $version_name lower than tag $highest_tag (skip error for debug)"
+              echo "::warning::pubspec version $version_name lower than tag $highest_tag (fork build keeps going)"
             fi
           fi
           version_args=()
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             version_args=(--expected-version-name "${GITHUB_REF_NAME#v}")
           fi
-          # Debug包输出路径：build/app/outputs/flutter-apk/app-debug.apk
+          # Release 包输出路径：build/app/outputs/flutter-apk/app-release.apk
           python3 scripts/verify_android_apk.py \
-            --apk build/app/outputs/flutter-apk/app-debug.apk \
+            --apk build/app/outputs/flutter-apk/app-release.apk \
             --build-tools "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION" \
             "${signer_args[@]}" \
             "${version_args[@]}" \
             --report-dir build/ci-artifacts/verification
-          cp build/app/outputs/flutter-apk/app-debug.apk build/ci-artifacts/app-debug.apk
+          cp build/app/outputs/flutter-apk/app-release.apk build/ci-artifacts/app-release.apk
           {
             printf 'App commit: %s\n' "$GITHUB_SHA"
             printf 'Rust core: fqapi_core (flutter_rust_bridge %s)\n' "$FRB_VERSION"
             printf 'Rust core library SHA-256: '
             sha256sum android/app/src/main/jniLibs/arm64-v8a/libfqapi_core.so
-            printf 'Build type: DEBUG (auto debug keystore, can install directly)\n'
+            if [ "$HAS_RELEASE_SIGNING" = "true" ]; then
+              printf 'Release signer SHA-256: %s\n' "$RELEASE_SIGNER_SHA256"
+            else
+              printf 'Release signer: throwaway CI keystore (NOT the upstream release certificate)\n'
+            fi
             printf 'NDK: %s\nCMake: %s\nAndroid Build Tools: %s\n' "$NDK_VERSION" "$CMAKE_VERSION" "$BUILD_TOOLS_VERSION"
             flutter --version
             cargo --version
             rustc --version
             java -version 2>&1
           } > build/ci-artifacts/build-info.txt
-      - name: Upload Debug APK and verification reports
+      - name: Upload Release APK and verification reports
         id: artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: fqapp-debug-arm64-${{ steps.artifact-ids.outputs.safe_ref }}-${{ steps.artifact-ids.outputs.short_sha }}-${{ github.run_number }}
+          name: fqapp-arm64-${{ steps.artifact-ids.outputs.safe_ref }}-${{ steps.artifact-ids.outputs.short_sha }}-${{ github.run_number }}
           retention-days: 14
           if-no-files-found: error
           compression-level: 0
           path: |
-            app/build/ci-artifacts/app-debug.apk
+            app/build/ci-artifacts/app-release.apk
             app/build/ci-artifacts/build-info.txt
             app/build/ci-artifacts/rust-core-symbols.txt
             app/build/ci-artifacts/rust-core-program-headers.txt
@@ -320,14 +366,14 @@ jobs:
           HAS_RELEASE_SIGNING: ${{ steps.signing.outputs.has_release_signing }}
         run: |
           {
-            printf '[下载 ARM64 DEBUG APK 和校验报告](%s)\n\n' "$ARTIFACT_URL"
+            printf '[下载 ARM64 RELEASE APK 和校验报告](%s)\n\n' "$ARTIFACT_URL"
             printf 'App commit: `%s`  \n' "$GITHUB_SHA"
             printf 'Rust core: `fqapi_core` (flutter_rust_bridge `%s`)\n\n' "$FRB_VERSION"
             printf 'Rust core library SHA-256: `%s`\n\n' \
               "$(sha256sum android/app/src/main/jniLibs/arm64-v8a/libfqapi_core.so | cut -d ' ' -f 1)"
-            printf '构建类型：DEBUG调试包（系统默认调试签名，可以直接安装安卓设备）\n\n'
-            printf '⚠️注意：Debug包不能覆盖安装原作者的正式签名Release包，安装前需要卸载旧版本。\n'
+            printf '构建类型：RELEASE（arm64-v8a，R8 + 资源裁剪，与原作者 AGENTS.md 第 4 条一致）\n\n'
+            printf '⚠️注意：本包不是原作者正式证书签名，不能覆盖安装官方发行包；用你自己的密钥重签后再安装，或先卸载旧版本。\n'
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Dummy remove signing file
+      - name: Remove temporary signing file
         if: always()
-        run: echo "debug build skip keystore cleanup"
+        run: rm -f "/fqapp-release.jks"
