@@ -15,7 +15,7 @@
     <!-- Device identity and reading data stay on-device; see
          .agents/notes/implemented/bug-fix/2026-09-18-home-geometry-and-backup.md -->
     <application
-        android:label="番茄炒鸡蛋·共存"
+        android:label="测试版"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
