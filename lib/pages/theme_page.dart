@@ -432,6 +432,9 @@ class _ArchiveMini extends StatelessWidget {
     final ink = scheme.onSurface;
     final muted = scheme.onSurfaceVariant;
     final line = scheme.outlineVariant;
+    // 档案预览也开始带品牌红：编号行、章印线、节号、底栏选中
+    // 四个点，与经典预览的橙色强调同源（都是 scheme.primary）。
+    final accent = scheme.primary;
     return Column(
       children: [
         Expanded(
@@ -446,18 +449,18 @@ class _ArchiveMini extends StatelessWidget {
                     fontSize: 8,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 2.2,
-                    color: ink,
+                    color: accent,
                   ),
                 ),
                 const SizedBox(height: 5),
-                Container(height: 1, color: ink),
+                Container(height: 1, color: accent),
                 const SizedBox(height: 7),
                 Text(
                   '01 / READING',
                   style: TextStyle(
                     fontSize: 5.5,
                     letterSpacing: 1.2,
-                    color: muted,
+                    color: accent,
                   ),
                 ),
                 const SizedBox(height: 7),
@@ -540,7 +543,7 @@ class _ArchiveMini extends StatelessWidget {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: i == 0 ? ink : muted.withValues(alpha: .35),
+                      color: i == 0 ? accent : muted.withValues(alpha: .35),
                       borderRadius: BorderRadius.circular(i == 0 ? 2 : 4),
                     ),
                   ),

@@ -1,3 +1,4 @@
+import '../services/saver_mode.dart';
 import '../widgets/video_player_chrome.dart';
 import '../services/desktop_platform.dart';
 import '../services/ios_platform.dart';
@@ -1118,6 +1119,9 @@ class _DramaPageState extends ConsumerState<DramaPage>
         builder: (context) {
           if (!dark) {
             return PlayletMorePanelLight(
+              saverMode: SaverMode.isOn,
+              onToggleSaverMode: () =>
+                  unawaited(SaverMode.setEnabled(!SaverMode.isOn)),
               // 倍速/清晰度入口行：官方是面板内的药丸行，这里改成点开
               // 档位弹层（feed 卡片没有底栏当前档可点）。
               rateLabel: rateLabel,
@@ -1148,6 +1152,8 @@ class _DramaPageState extends ConsumerState<DramaPage>
             );
           }
           return PlayletMorePanel(
+            saverMode: SaverMode.isOn,
+            onSaverModeChanged: (value) => unawaited(SaverMode.setEnabled(value)),
             // 倍速/清晰度入口行（与浅色支同门，点开档位弹层）。
             rateLabel: rateLabel,
             onOpenRate: () => _pendingFeedRate = true,
@@ -1240,6 +1246,11 @@ class _DramaPageState extends ConsumerState<DramaPage>
   /// 清晰度切换（官方 `bgw`）：Toast 立即出，不等换流完成。
   void _switchFeedQuality(EpisodeVariant variant) {
     if (!mounted) return;
+    // 省流模式：只放行 360P，其它档给提示不换流。
+    if (SaverMode.isOn && variant.name != SaverMode.forcedName) {
+      PlayerToast.show(context, '省流模式已开启，仅播放 360P');
+      return;
+    }
     PlayerToast.show(context, '清晰度已成功切换至${variant.name}');
     unawaited(_inline.switchVariant(variant));
   }
@@ -2125,8 +2136,15 @@ class _DramaPageState extends ConsumerState<DramaPage>
                   defaultMute: _inline.muted.value,
                   qualityVariants: _inline.variants,
                   currentQualityUrl: _inline.currentVariant?.url,
-                  onQualitySelected: (variant) =>
-                      unawaited(_inline.switchVariant(variant)),
+                  onQualitySelected: (variant) {
+                    // 省流模式：只放行 360P，其它档给提示不换流。
+                    if (SaverMode.isOn &&
+                        variant.name != SaverMode.forcedName) {
+                      PlayerToast.show(context, '省流模式已开启，仅播放 360P');
+                      return;
+                    }
+                    unawaited(_inline.switchVariant(variant));
+                  },
                   child: Stack(
                     fit: StackFit.expand,
                     children: [

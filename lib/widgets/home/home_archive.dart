@@ -141,7 +141,11 @@ class HomeSectionLabel extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(child: Container(height: 1, color: palette.line)),
                 const SizedBox(width: 8),
-                Container(width: 4, height: 4, color: palette.mark),
+                Container(
+                  width: 4,
+                  height: 4,
+                  color: palette.eink ? palette.mark : HomePalette.accent,
+                ),
               ],
             ),
             const SizedBox(height: 4),

@@ -1,4 +1,5 @@
 import '../services/desktop_platform.dart';
+import '../services/saver_mode.dart';
 import 'desktop_video_chrome.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -1454,6 +1455,8 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
       await _showSidePanel<void>(
         background: const Color(0xFF141414),
         builder: (_) => PlayletSideSettingsFlow(
+          saverMode: SaverMode.isOn,
+          onSaverModeChanged: (value) => unawaited(SaverMode.setEnabled(value)),
           clearScreen: _clearScreen,
           onToggleClearScreen: _clearScreenPanelAvailable
               ? () => _setClearScreen(!_clearScreen)
@@ -1729,6 +1732,9 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
     Widget buildPanel(BuildContext sheetContext) {
       if (widget.shortSeries && !dark) {
         return PlayletMorePanelLight(
+          saverMode: SaverMode.isOn,
+          onToggleSaverMode: () =>
+              unawaited(SaverMode.setEnabled(!SaverMode.isOn)),
           rateLabel: panelRateEntry ? _rateChipLabel(_rate) : null,
           onOpenRate: panelRateEntry ? () => _pendingRatePicker = true : null,
           qualityLabel: panelQualityEntry ? _qualityLabel() : null,
@@ -1755,6 +1761,8 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
       }
       return widget.shortSeries
           ? PlayletMorePanel(
+              saverMode: SaverMode.isOn,
+              onSaverModeChanged: (value) => unawaited(SaverMode.setEnabled(value)),
               rateLabel: panelRateEntry ? _rateChipLabel(_rate) : null,
               onOpenRate: panelRateEntry
                   ? () => _pendingRatePicker = true

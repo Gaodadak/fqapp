@@ -51,7 +51,12 @@ class HomeMasthead extends StatelessWidget {
                 ),
                 if (AppStyleTokens.of(context).showDecorativeCodes) ...[
                   const SizedBox(height: 3),
-                  const HomeCode(brandCode, size: 8),
+                  // 档案编号转品牌红（墨水屏仍退纯黑白）。
+                  HomeCode(
+                    brandCode,
+                    size: 8,
+                    color: palette.eink ? palette.ink : HomePalette.accent,
+                  ),
                 ],
               ],
             ),

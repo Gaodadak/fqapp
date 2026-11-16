@@ -25,6 +25,8 @@ class PlayletMorePanel extends StatefulWidget {
     this.onOpenRate,
     this.qualityLabel,
     this.onOpenQuality,
+    this.saverMode = false,
+    this.onSaverModeChanged,
   });
 
   final bool fillScreen;
@@ -53,6 +55,10 @@ class PlayletMorePanel extends StatefulWidget {
   final VoidCallback? onOpenRate;
   final String? qualityLabel;
   final VoidCallback? onOpenQuality;
+  /// 省流模式（本项目自加）：开着时所有播放一律 360P，压过会话记忆档
+  /// （[SaverMode]）。null 回调时整行不出现（与弹幕开关同门）。
+  final bool saverMode;
+  final ValueChanged<bool>? onSaverModeChanged;
 
   @override
   State<PlayletMorePanel> createState() => _PlayletMorePanelState();
@@ -62,6 +68,7 @@ class _PlayletMorePanelState extends State<PlayletMorePanel> {
   late bool _fillScreen;
   late bool _defaultMute;
   late bool _danmakuEnabled;
+  late bool _saverMode;
 
   @override
   void initState() {
@@ -69,6 +76,7 @@ class _PlayletMorePanelState extends State<PlayletMorePanel> {
     _fillScreen = widget.fillScreen;
     _defaultMute = widget.defaultMute;
     _danmakuEnabled = widget.danmakuEnabled;
+    _saverMode = widget.saverMode;
   }
 
   @override
@@ -130,6 +138,13 @@ class _PlayletMorePanelState extends State<PlayletMorePanel> {
                       }, value: widget.qualityLabel),
                     // V2 的 options 在 actions 上方；保留 o() 中撑满、
                     // 静音、弹幕的相对顺序，省略用户排除及未接入的项目。
+                    // 省流模式（本项目自加）：全局硬闸，开着时所有播放
+                    // 一律 360P，压过会话记忆档。与撑满/静音同组，放开关区首位。
+                    if (widget.onSaverModeChanged != null)
+                      _switchRow('saver', '省流模式', _saverMode, () {
+                        setState(() => _saverMode = !_saverMode);
+                        widget.onSaverModeChanged!(_saverMode);
+                      }),
                     if (widget.onFillScreenChanged != null)
                       _switchRow('fill', '画面撑满', _fillScreen, () {
                         setState(() => _fillScreen = !_fillScreen);

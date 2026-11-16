@@ -22,6 +22,7 @@ import 'player_panel_preferences.dart';
 import 'player_preferences.dart';
 import 'player_pool.dart';
 import 'quality_memory.dart';
+import 'saver_mode.dart';
 import 'user_facing_error.dart';
 import 'video_catalogue.dart';
 
@@ -433,7 +434,8 @@ class InlineVideoPlayback {
       // variant 对象——variant 的 URL 属于它自己的集。
       // 会话内记住的画质优先；没有就走本仓默认档 360P。
       final (preferred, _) = source.withPreferredQuality(
-        name: QualityMemory.nameFor(contentId),
+        // 省流模式压过会话记忆：开着时一律 360P。
+        name: SaverMode.forcedQualityName ?? QualityMemory.nameFor(contentId),
       );
       source = preferred;
       _currentSource = source;
@@ -520,6 +522,8 @@ class InlineVideoPlayback {
   /// rendition is its own encrypted URL, so an equivalent switch reopens the
   /// stream on the same episode. Selection is remembered for the session.
   Future<void> switchVariant(EpisodeVariant variant) async {
+    // 省流模式：只放行 360P 档（起播已强制 360P，这里挡住运行中升档）。
+    if (SaverMode.isOn && variant.name != SaverMode.forcedName) return;
     final source = _currentSource;
     final player = _player;
     final series = _active;

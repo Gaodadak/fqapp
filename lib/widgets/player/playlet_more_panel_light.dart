@@ -36,6 +36,8 @@ class PlayletMorePanelLight extends StatelessWidget {
     this.onOpenRate,
     this.qualityLabel,
     this.onOpenQuality,
+    this.saverMode = false,
+    this.onToggleSaverMode,
   });
 
   final bool clearScreen;
@@ -72,6 +74,10 @@ class PlayletMorePanelLight extends StatelessWidget {
   final String? qualityLabel;
   final VoidCallback? onOpenQuality;
 
+  /// 省流模式：开着时所有播放一律 360P，压过会话记忆档（[SaverMode]）。
+  /// null 回调时整行不出现（与弹幕开关同门）。
+  final bool saverMode;
+  final VoidCallback? onToggleSaverMode;
   static Color _foreground(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
       ? const Color(0xCCFFFFFF)
@@ -132,6 +138,19 @@ class PlayletMorePanelLight extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _panelCard(context, [
+                    // 省流模式：全局硬闸，开着时所有播放一律 360P。放白卡 1
+                    // 首位——它管的是「播哪个码率」，比下面几行入口更该一眼
+                    // 看到；行本身自带本地 state，点完开关立刻跟手。
+                    if (onToggleSaverMode != null)
+                      _SwitchRow(
+                        rowKey: 'player-more-light-saver',
+                        icon: 'more_saver',
+                        label: '省流模式',
+                        toggled: saverMode,
+                        onToggle: onToggleSaverMode!,
+                        foreground: _foreground(context),
+                        labelStyle: _labelStyle(context),
+                      ),
                     // 倍速/清晰度入口行（feed 专用：卡片没有底栏当前档可点，
                     // 播放页的两项走底栏直连的档位弹层）。
                     if (onOpenRate != null)

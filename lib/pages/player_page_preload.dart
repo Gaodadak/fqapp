@@ -280,7 +280,8 @@ extension _PlayerPagePreload on _PlayerPageState {
     // 它自己的集，搬过来会播错集的流。
     // 会话内记住的画质优先；没有（本剧第一次起播）就走本仓默认档 360P。
     final (preferred, preferredHeight) = online.withPreferredQuality(
-      name: QualityMemory.nameFor(widget.bookId),
+      // 省流模式压过会话记忆：开着时一律 360P。
+      name: SaverMode.forcedQualityName ?? QualityMemory.nameFor(widget.bookId),
     );
     online = preferred;
     qualityHeight = preferredHeight;

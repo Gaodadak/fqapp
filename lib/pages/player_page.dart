@@ -36,6 +36,7 @@ import '../services/player_load_diagnostics.dart';
 import '../services/player_preferences.dart';
 import '../services/player_style_config.dart';
 import '../services/quality_memory.dart';
+import '../services/saver_mode.dart';
 import '../services/swipe_guide_store.dart';
 import '../widgets/player/playlet_comment_panel.dart';
 import '../widgets/player/playlet_danmaku_layer.dart';
@@ -1553,6 +1554,11 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     final resumeMs = resume.inMilliseconds;
     final wasPlaying = _playing;
     final episode = widget.eps[_index];
+    // 省流模式：起播已强制 360P，运行中换档同样拦住，并说明为什么没反应。
+    if (SaverMode.isOn && variant.name != SaverMode.forcedName) {
+      PlayerToast.show(context, '省流模式已开启，仅播放 360P');
+      return;
+    }
     QualityMemory.remember(widget.bookId, variant.name);
     // 预热的下一集还是旧档位：作废，快播完时按新档位重新预热。
     _dropWarm();

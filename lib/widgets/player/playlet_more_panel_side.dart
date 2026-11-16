@@ -33,6 +33,8 @@ class PlayletSideSettingsFlow extends StatefulWidget {
     this.onDefaultMuteChanged,
     this.onOpenListenMode,
     this.onOpenOfflineCache,
+    this.saverMode = false,
+    this.onSaverModeChanged,
   });
 
   final bool clearScreen;
@@ -63,6 +65,9 @@ class PlayletSideSettingsFlow extends StatefulWidget {
 
   final VoidCallback? onOpenListenMode;
   final VoidCallback? onOpenOfflineCache;
+  /// 省流模式（本项目自加）：开着时所有播放一律 360P（压过会话记忆档）。
+  final bool saverMode;
+  final ValueChanged<bool>? onSaverModeChanged;
 
   @override
   State<PlayletSideSettingsFlow> createState() =>
@@ -74,6 +79,7 @@ class _PlayletSideSettingsFlowState extends State<PlayletSideSettingsFlow> {
   late bool _danmaku = widget.danmakuEnabled;
   late bool _fill = widget.fillScreen;
   late bool _mute = widget.defaultMute;
+  late bool _saver = widget.saverMode;
   late DanmakuSettings _settings =
       widget.danmakuSettings ?? const DanmakuSettings();
 
@@ -116,6 +122,13 @@ class _PlayletSideSettingsFlowState extends State<PlayletSideSettingsFlow> {
           : () {
               setState(() => _fill = !_fill);
               widget.onFillScreenChanged!(_fill);
+            },
+      saverMode: _saver,
+      onSaverModeChanged: widget.onSaverModeChanged == null
+          ? null
+          : () {
+              setState(() => _saver = !_saver);
+              widget.onSaverModeChanged!(_saver);
             },
       defaultMute: _mute,
       onDefaultMuteChanged: widget.onDefaultMuteChanged == null
@@ -180,6 +193,8 @@ class PlayletMorePanelSide extends StatelessWidget {
     this.onDefaultMuteChanged,
     this.onOpenListenMode,
     this.onOpenOfflineCache,
+    this.saverMode = false,
+    this.onSaverModeChanged,
     required this.onStep,
   });
 
@@ -202,6 +217,9 @@ class PlayletMorePanelSide extends StatelessWidget {
 
   final VoidCallback? onOpenListenMode;
   final VoidCallback? onOpenOfflineCache;
+  /// 省流模式（本项目自加）：开着时所有播放一律 360P。
+  final bool saverMode;
+  final ValueChanged<bool>? onSaverModeChanged;
 
   /// 切到二级面板（弹幕设置 / 字号）。
   final ValueChanged<PlayerSidePanelRoute> onStep;
@@ -211,6 +229,15 @@ class PlayletMorePanelSide extends StatelessWidget {
     final insets = MediaQuery.paddingOf(context);
     final tiles = <Widget>[
       // 开关块在前：宫格里「当前开着哪几项」比入口更容易一眼扫到。
+      if (onSaverModeChanged != null)
+        PlayerSidePanelTile(
+          tileKey: 'player-more-saver',
+          label: '省流模式',
+          icon: 'saver',
+          active: saverMode,
+          stateKey: 'player-more-saver-switch',
+          onTap: () => onSaverModeChanged!(!saverMode),
+        ),
       if (onFillScreenChanged != null)
         PlayerSidePanelTile(
           tileKey: 'player-more-fill',

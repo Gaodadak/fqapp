@@ -1,4 +1,5 @@
 import 'services/audio_downloader.dart';
+import 'services/saver_mode.dart';
 import 'widgets/desktop_app_frame.dart';
 import 'services/native_player.dart';
 import 'services/desktop_platform.dart';
@@ -197,6 +198,8 @@ Future<void> _loadLocalData() async {
     }),
     // 官方播放页开关（PlayerBottomStyleConfig / 清屏反转 / 横屏锁）随同一份
     // 运行时配置读取；读不到就用默认值，不能拖住启动。
+    // 省流模式：落盘开关，起来就读一次（起播路径直接读内存值）。
+    SaverMode.load(),
     PlayerStyleConfig.load(),
     // 官方播放页字号档（jk3/b 的 SP）同理：读失败回标准档，不拖启动。
     ShortSeriesFontScale.load(),
