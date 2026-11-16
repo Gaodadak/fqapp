@@ -278,18 +278,12 @@ extension _PlayerPagePreload on _PlayerPageState {
     // 应变回默认画质）。记忆由 [QualityMemory] 在 Feed 与播放页
     // 之间共享；只记名、不搬 variant 对象——variant 的 URL 属于
     // 它自己的集，搬过来会播错集的流。
-    final chosenName = QualityMemory.nameFor(widget.bookId);
-    if (chosenName != null) {
-      for (final variant in online.variants) {
-        if (variant.name == chosenName) {
-          online = online.withVariant(variant);
-          qualityHeight = variant.qualityHeight > 0
-              ? variant.qualityHeight
-              : null;
-          break;
-        }
-      }
-    }
+    // 会话内记住的画质优先；没有（本剧第一次起播）就走本仓默认档 360P。
+    final (preferred, preferredHeight) = online.withPreferredQuality(
+      name: QualityMemory.nameFor(widget.bookId),
+    );
+    online = preferred;
+    qualityHeight = preferredHeight;
     // 换档只为这一次起播，不写进 [QualityMemory]。
     if (avoidVariant != null) {
       if (fallbackVariant(online.variants, avoidVariant) case final variant?) {

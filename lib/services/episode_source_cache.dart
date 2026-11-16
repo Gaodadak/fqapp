@@ -57,6 +57,41 @@ class EpisodeSource {
     vertical,
     sourceTraceId,
   );
+  /// 本仓默认起播档位（官方没这个概念：服务端给哪路就播哪路，实测落在
+  /// 最高档）。手机流量下默认拉 1080P 太狠，这里改成默认 360P：命中就用，
+  /// 没这一档就退到列表里最低的一档。
+  ///
+  /// [name] 是会话内记住的画质名（`QualityMemory`），有就优先用它——用户
+  /// 手选过的档位不该被默认值盖掉。返回选中后的 source 与本集的短边质量
+  /// （0/未知时为 null）。
+  (EpisodeSource, int?) withPreferredQuality({
+    String? name,
+    String defaultName = '360P',
+  }) {
+    if (variants.isEmpty) return (this, null);
+    EpisodeVariant? pick;
+    if (name != null && name.isNotEmpty) {
+      for (final variant in variants) {
+        if (variant.name == name) {
+          pick = variant;
+          break;
+        }
+      }
+    }
+    if (pick == null) {
+      for (final variant in variants) {
+        if (variant.name == defaultName) {
+          pick = variant;
+          break;
+        }
+      }
+    }
+    final chosen = pick ?? variants.last;
+    return (
+      withVariant(chosen),
+      chosen.qualityHeight > 0 ? chosen.qualityHeight : null,
+    );
+  }
 
   factory EpisodeSource.fromResponse(Map<String, dynamic> response) {
     final data = response['data'] is Map

@@ -103,10 +103,14 @@ class PlayerVideoLayout {
   /// 裁切（issue #59 复测：撑满带进横屏会把 720P 放大成一片糊）。
   ///
   /// Note: .agents/notes/implemented/bug-fix/2026-10-19-fullscreen-landscape-alignment.md
+  ///
+  /// 本仓定制：全屏（含横屏）也照「画面撑满」来，不再强制 contain——
+  /// 用户开着撑满，就是要画面填满屏幕。片源宽于 [landscapeRatio] 时仍由
+  /// [fillsFrame] 降级为完整显示，字幕不会被裁掉。
   static VideoFit fitFor({
     required bool fillScreen,
     required bool fullScreen,
-  }) => !fillScreen || fullScreen ? VideoFit.contain : VideoFit.fillFrame;
+  }) => fillScreen ? VideoFit.fillFrame : VideoFit.contain;
 
   /// 面板展开时占整窗的比例。未知尺寸按 16:9 占位，所以跟横版一样给 .64。
   static double panelFractionFor(Size videoSize) =>

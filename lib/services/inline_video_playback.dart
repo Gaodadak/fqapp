@@ -431,15 +431,11 @@ class InlineVideoPlayback {
       // 的 variants 里找，找到就用，找不到回默认。记忆由
       // [QualityMemory] 在 Feed 与播放页之间共享；只记名、不搬
       // variant 对象——variant 的 URL 属于它自己的集。
-      final chosenName = QualityMemory.nameFor(contentId);
-      if (chosenName != null) {
-        for (final variant in source.variants) {
-          if (variant.name == chosenName) {
-            source = source.withVariant(variant);
-            break;
-          }
-        }
-      }
+      // 会话内记住的画质优先；没有就走本仓默认档 360P。
+      final (preferred, _) = source.withPreferredQuality(
+        name: QualityMemory.nameFor(contentId),
+      );
+      source = preferred;
       _currentSource = source;
       if (!_current(generation)) return;
       final uri = Uri.tryParse(source.url);

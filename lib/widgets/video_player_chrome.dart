@@ -570,8 +570,15 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
   /// 尺寸未知时返回 null，即不发新请求、保持当前方向。未知在连播切集时
   /// 最常见（新播放器还没解码）：无论按哪边兜底，都会让正在看的方向突然
   /// 翻一下（issue #59 是竖屏兜底造成的回弹）。
+  /// 本仓定制开关：全屏一律转横屏。
+  ///
+  /// 原版按片源方向走：竖版片源（9:16 的短剧）全屏时钉竖屏，设备横过来
+  /// 也不转——用户看到的就是「横屏不生效」。置回 false 即恢复官方行为。
+  static const bool _forceLandscapeFullScreen = true;
+
   List<DeviceOrientation>? get _fullScreenOrientationsForSource {
     if (_entryLandscape) return _fullScreenLandscapeOrientations;
+    if (_forceLandscapeFullScreen) return _fullScreenLandscapeOrientations;
     final width = widget.player?.videoWidth ?? 0;
     final height = widget.player?.videoHeight ?? 0;
     if (width <= 0 || height <= 0) return null;
