@@ -15,7 +15,7 @@ class HomeMasthead extends StatelessWidget {
   static const String brand = '番茄炒鸡蛋';
 
   /// 店名下面的档案编号，纯装饰性的识别行。
-  static const String brandCode = 'SHIJINPU / STORY ARCHIVE';
+  static const String brandCode = 'FANQIECHAOJIDAN / STORY ARCHIVE';
 
   static const double actionSize = 36;
 
