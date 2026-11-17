@@ -34,10 +34,12 @@ class AppThemeStyleStore extends ValueNotifier<AppThemeStyle> {
        _preferences = preferences ?? SharedPreferences.getInstance,
        super(missingStyle);
 
-  /// The app-wide store uses the classic UI for a fresh install. Isolated
-  /// stores keep the archive default unless their caller opts into a fallback.
+  /// The app-wide store defaults to the archive UI (the app's own
+  /// presentation) for a fresh install or for any install that never picked a
+  /// style. Isolated stores share the same archive default unless their caller
+  /// opts into a fallback.
   static final instance = AppThemeStyleStore(
-    missingStyle: AppThemeStyle.classic,
+    missingStyle: AppThemeStyle.archive,
   );
   static const storageKey = 'app_theme_style';
 
