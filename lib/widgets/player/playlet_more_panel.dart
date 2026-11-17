@@ -146,7 +146,7 @@ class _PlayletMorePanelState extends State<PlayletMorePanel> {
                         widget.onSaverModeChanged!(_saverMode);
                       }),
                     if (widget.onFillScreenChanged != null)
-                      _switchRow('fill', '画面撑满', _fillScreen, () {
+                      _switchRow('fill', '全屏模式', _fillScreen, () {
                         setState(() => _fillScreen = !_fillScreen);
                         widget.onFillScreenChanged!(_fillScreen);
                       }),

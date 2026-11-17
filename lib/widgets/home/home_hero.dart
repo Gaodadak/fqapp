@@ -199,11 +199,11 @@ class _HomeHeroState extends State<HomeHero> {
         ),
         child: Row(
           children: [
-            Icon(LucideIcons.layout_grid, size: 15, color: palette.ink),
+            Icon(LucideIcons.layout_grid, size: 15, color: palette.accentText),
             const SizedBox(width: 5),
             Text(
               HomeHero.categoryLabel,
-              style: TextStyle(fontSize: 13, color: palette.ink),
+              style: TextStyle(fontSize: 13, color: palette.accentText),
             ),
           ],
         ),

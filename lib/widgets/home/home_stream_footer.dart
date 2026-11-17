@@ -49,8 +49,8 @@ class HomeStreamFooter extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 档案式细线：1dp 实线 + 等宽留白，和分区标签同一种收尾。
-              Container(width: 18, height: 1, color: palette.line),
+              // 档案式细线：1dp 实线 + 等宽留白，和分区标签同一种收尾；转品牌红。
+              Container(width: 18, height: 1, color: palette.accentText),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Text(
@@ -63,7 +63,7 @@ class HomeStreamFooter extends StatelessWidget {
                   ),
                 ),
               ),
-              Container(width: 18, height: 1, color: palette.line),
+              Container(width: 18, height: 1, color: palette.accentText),
             ],
           ),
         );

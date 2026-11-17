@@ -242,7 +242,7 @@ class PlayletMorePanelSide extends StatelessWidget {
       if (onFillScreenChanged != null)
         PlayerSidePanelTile(
           tileKey: 'player-more-fill',
-          label: '画面撑满',
+          label: '全屏模式',
           icon: 'fill',
           active: fillScreen,
           stateKey: 'player-more-fill-switch',

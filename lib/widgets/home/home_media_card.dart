@@ -325,7 +325,7 @@ class HomeMediaCard extends StatelessWidget {
                 style: homeCodeStyle(
                   palette,
                   size: homeCardCodeSize,
-                  color: palette.muted,
+                  color: palette.accentText,
                 ),
               ),
             ],

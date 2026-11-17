@@ -101,7 +101,7 @@ class HomeTabBar extends StatelessWidget {
                   fontSize: selected ? selectedSize : unselectedSize,
                   height: 1.1,
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  color: selected ? palette.ink : palette.muted,
+                  color: selected ? palette.accentText : palette.muted,
                 ),
                 child: Text(category.label, maxLines: 1),
               ),
@@ -114,7 +114,7 @@ class HomeTabBar extends StatelessWidget {
               child: AnimatedContainer(
                 duration: duration,
                 curve: Curves.easeOutCubic,
-                color: selected ? palette.mark : Colors.transparent,
+                color: selected ? palette.accentText : Colors.transparent,
               ),
             ),
           ],

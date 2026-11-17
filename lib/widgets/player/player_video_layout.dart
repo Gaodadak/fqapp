@@ -85,28 +85,25 @@ class PlayerVideoLayout {
 
   /// Whether [VideoFit.fillFrame] actually fills (and crops) for this source.
   ///
-  /// A wide source is demoted to fit-width, so the whole picture — including
-  /// its burnt in captions — stays visible. An unknown size resolves to 9:16
-  /// through [sourceSize]: until the decoder reports its own geometry the source
-  /// is assumed portrait, which only decides *this* predicate (the stage box in
-  /// [calculate] still fills the viewport).
+  /// 本仓定制：全屏模式（原「画面撑满」）要求**不论片源宽高比**，横竖都
+  /// 铺满整块屏幕。官方 `ShortVideoCropConfig.landscapeRatio` 1.666 的门槛
+  /// 在这里取消——宽片源也照样按 cover 放大裁切，宁可裁掉边也不留黑边。
+  /// 需要完整显示（含烧进画面的字幕）时由调用方显式传
+  /// [VideoFit.contain]（分屏视频盒、桌面卡片），不再靠比例自动降级。
   static bool fillsFrame(Size videoSize) {
     final source = sourceSize(videoSize);
-    return source.width / source.height < landscapeRatio;
+    return source.width > 0 && source.height > 0;
   }
 
   /// The fit the surface should actually use.
   ///
   /// 官方 `cq3/o.d()`：wide screen 时强制 `DISPLAY_MODE_ASPECT_FIT`(mode 3)，
-  /// 于是横屏全屏**永远**是居中完整显示——即使竖屏里开着「画面撑满」
-  /// (`is_fill_screen`) 也一样。竖版片源在横屏里因此两侧留黑边，不会被放大
-  /// 裁切（issue #59 复测：撑满带进横屏会把 720P 放大成一片糊）。
+  /// 于是横屏全屏**永远**是居中完整显示——即使竖屏里开着「全屏模式」
+  /// (`is_fill_screen`) 也一样。竖版片源在横屏里因此两侧留黑边。
   ///
-  /// Note: .agents/notes/implemented/bug-fix/2026-10-19-fullscreen-landscape-alignment.md
-  ///
-  /// 本仓定制：全屏（含横屏）也照「画面撑满」来，不再强制 contain——
-  /// 用户开着撑满，就是要画面填满屏幕。片源宽于 [landscapeRatio] 时仍由
-  /// [fillsFrame] 降级为完整显示，字幕不会被裁掉。
+  /// 本仓定制：全屏（含横屏）照「全屏模式」来，不再强制 contain——用户开着
+  /// 它，就是要画面盖满屏幕，横竖都算。需要完整显示的地方（分屏视频盒、
+  /// 桌面卡片）自己直接传 [VideoFit.contain]，不靠比例判断。
   static VideoFit fitFor({
     required bool fillScreen,
     required bool fullScreen,
@@ -185,8 +182,13 @@ class PlayerVideoLayout {
     double? restingPanelFraction,
     bool fullScreen = false,
     bool compact = false,
+    bool edgeToEdge = false,
   }) {
-    final availableHeight = math.max(0.0, window.height - insets.top);
+    // 全屏模式（原「画面撑满」）要盖满整块屏幕：安全区只留给控件，不能从
+    // 画面里挖掉——否则顶部状态栏那一条会露出来。compact 的分屏盒本来就是
+    // 盒内坐标，同样不吃窗口安全区。
+    final safe = edgeToEdge || compact ? EdgeInsets.zero : insets;
+    final availableHeight = math.max(0.0, window.height - safe.top);
     final fraction = panelFraction.clamp(0.0, 1.0);
     final rest = (restingPanelFraction ?? panelFractionFor(videoSize)).clamp(
       .1,
@@ -196,11 +198,14 @@ class PlayerVideoLayout {
     // compact = 分屏里的独立视频盒：盒内没有底部信息层，44/163 的边距
     // 必须跳过，否则画面会被压到盒子上半部。
     final top =
-        insets.top + (fullScreen || compact ? 0 : 44) * (1 - transition);
+        ((edgeToEdge || fullScreen || compact) ? 0 : safe.top) +
+        (fullScreen || compact ? 0 : 44) * (1 - transition);
     // Leave the episode information and transport below the picture so burnt
     // in subtitles remain visible. These margins don't jump when chrome hides.
     final bottom =
-        (insets.bottom + (fullScreen || compact ? 0 : 163)) * (1 - transition) +
+        ((edgeToEdge || fullScreen || compact ? 0 : safe.bottom) +
+            (fullScreen || compact ? 0 : 163)) *
+            (1 - transition) +
         availableHeight * fraction;
     // 画面按**整窗宽度**居中：横握时挖孔/摄像头那一侧只占掉控件的安全区，
     // 不能从画面里挖掉一条——否则画面会被推到另一侧、黑边一宽一窄（B站
@@ -220,7 +225,8 @@ class PlayerVideoLayout {
     final source = videoSize;
     // Filling scales until both axes cover the frame, so the caller has to clip
     // the overflow; fitting keeps the whole picture inside instead.
-    final scale = fit == VideoFit.fillFrame && fillsFrame(source)
+    final fill = fit == VideoFit.fillFrame && fillsFrame(source);
+    final scale = fill
         ? math.max(
             viewport.width / source.width,
             viewport.height / source.height,
@@ -229,14 +235,21 @@ class PlayerVideoLayout {
             viewport.width / source.width,
             viewport.height / source.height,
           );
-    final size = Size(source.width * scale, source.height * scale);
+    // 全屏模式（fill）下直接把画面框定成视口大小：cover 必然溢出，取整后
+    // 两边仍可能差半个像素，落成一条黑缝。这里给足整块视口，溢出部分由
+    // 上层 ClipRect 裁掉，横竖都严丝合缝。
+    final size = fill
+        ? Size(viewport.width, viewport.height)
+        : Size(source.width * scale, source.height * scale);
     return PlayerVideoLayout._(
       viewport,
-      Rect.fromCenter(
-        center: viewport.center,
-        width: size.width,
-        height: size.height,
-      ),
+      fill
+          ? viewport
+          : Rect.fromCenter(
+              center: viewport.center,
+              width: size.width,
+              height: size.height,
+            ),
       availableHeight,
     );
   }

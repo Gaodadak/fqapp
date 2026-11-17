@@ -137,7 +137,10 @@ class HomeSectionLabel extends StatelessWidget {
           if (AppStyleTokens.of(context).showDecorativeCodes) ...[
             Row(
               children: [
-                HomeCode(code),
+                HomeCode(
+                  code,
+                  color: palette.eink ? palette.ink : HomePalette.accent,
+                ),
                 const SizedBox(width: 10),
                 Expanded(child: Container(height: 1, color: palette.line)),
                 const SizedBox(width: 8),
@@ -202,10 +205,14 @@ class HomeSectionAction extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(fontSize: 12, height: 1.2, color: palette.muted),
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.2,
+                color: palette.accentText,
+              ),
             ),
             const SizedBox(width: 2),
-            Icon(LucideIcons.chevron_right, size: 13, color: palette.muted),
+            Icon(LucideIcons.chevron_right, size: 13, color: palette.accentText),
           ],
         ),
       ),

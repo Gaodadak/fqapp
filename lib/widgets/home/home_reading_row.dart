@@ -140,7 +140,10 @@ class HomeContinueRow extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (tokens.showDecorativeCodes)
-                        HomeCode('CONTINUE / ${now.detail}')
+                        HomeCode(
+                          'CONTINUE / ${now.detail}',
+                          color: palette.accentText,
+                        )
                       else
                         Text(
                           '${now.verb} · ${now.detail}',
@@ -194,7 +197,9 @@ class HomeContinueRow extends StatelessWidget {
                           value: now.progress,
                           minHeight: 2,
                           backgroundColor: palette.line,
-                          valueColor: AlwaysStoppedAnimation(palette.mark),
+                          valueColor: AlwaysStoppedAnimation(
+                            palette.accentText,
+                          ),
                         ),
                       ),
                     ],
@@ -207,7 +212,11 @@ class HomeContinueRow extends StatelessWidget {
                 padding: const EdgeInsets.only(left: 10),
                 child: Text(
                   '$percent%',
-                  style: homeCodeStyle(palette, size: 12, color: palette.ink)
+                  style: homeCodeStyle(
+                    palette,
+                    size: 12,
+                    color: palette.accentText,
+                  )
                       .copyWith(
                         letterSpacing: 0,
                         fontFeatures: const [FontFeature.tabularFigures()],

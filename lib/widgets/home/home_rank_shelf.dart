@@ -609,7 +609,7 @@ class _HomeRankShelfState extends State<HomeRankShelf> {
                         HomeCode(
                           'NO.${(i + 1).toString().padLeft(3, '0')}',
                           size: 8,
-                          color: palette.ink,
+                          color: palette.accentText,
                         ),
                         const SizedBox(height: 6),
                         SizedBox(
@@ -813,7 +813,7 @@ class _InfoRow extends StatelessWidget {
                   child: Icon(
                     LucideIcons.arrow_up_right,
                     size: 20,
-                    color: palette.ink,
+                    color: palette.accentText,
                   ),
                 ),
               ],
@@ -859,6 +859,7 @@ class _Pager extends StatelessWidget {
             Expanded(
               child: HomeCode(
                 readLabel.isEmpty ? 'NO.$serial' : 'NO.$serial / $readLabel',
+                color: palette.accentText,
               ),
             ),
             const SizedBox(width: 8),
@@ -952,6 +953,8 @@ class _Volume {
     ui.Image? image,
   ) {
     final code = homeCodeStyle(palette, size: 7);
+    // 书脊上的名次编号转品牌红（墨水屏 accentText 自动退纯黑）。
+    final rankCode = homeCodeStyle(palette, size: 7, color: palette.accentText);
     final titleSize = scaler.scale(9);
     final maxChars = math.max(
       3,
@@ -962,7 +965,7 @@ class _Volume {
     return _Volume(
       rank: _text(
         (index + 1).toString().padLeft(2, '0'),
-        code,
+        rankCode,
         maxWidth: g.spine,
       ),
       title: _text(

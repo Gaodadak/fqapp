@@ -1891,13 +1891,13 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
                           },
                         ),
                       ],
-                      // 官方更多面板：画面撑满行（SP `is_fill_screen`）。
+                      // 官方更多面板：全屏模式行（SP `is_fill_screen`）。
                       if (widget.onFillScreenChanged != null) ...[
                         const SizedBox(height: 12),
                         _sheetSwitch(
                           'player-more-fill-row',
                           'player-more-fill-switch',
-                          '画面撑满',
+                          '全屏模式',
                           sheetFill,
                           onChanged: (value) {
                             widget.onFillScreenChanged!.call(value);
@@ -3782,6 +3782,9 @@ class _VideoPlayerChromeState extends State<VideoPlayerChrome>
         restingPanelFraction: compact ? 0 : _panelRestFraction,
         fullScreen: _fullScreen || _windowLandscape,
         compact: compact,
+        // 全屏模式：画面一直铺到屏幕物理边缘（状态栏、挖孔那条也算画面），
+        // 安全区只留给控件。
+        edgeToEdge: !compact && widget.fillScreen,
       );
       // Retain the video/cover subtree while only its rectangle follows the
       // panel. DraggableScrollableSheet already retains its own content.
