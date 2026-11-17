@@ -219,7 +219,8 @@ class PlayletMorePanelSide extends StatelessWidget {
   final VoidCallback? onOpenOfflineCache;
   /// 省流模式（本项目自加）：开着时所有播放一律 360P。
   final bool saverMode;
-  final ValueChanged<bool>? onSaverModeChanged;
+  /// 点一下切换（无参 toggle，与「画面撑满」同款）。非空才出现该行。
+  final VoidCallback? onSaverModeChanged;
 
   /// 切到二级面板（弹幕设置 / 字号）。
   final ValueChanged<PlayerSidePanelRoute> onStep;
@@ -236,7 +237,7 @@ class PlayletMorePanelSide extends StatelessWidget {
           icon: 'saver',
           active: saverMode,
           stateKey: 'player-more-saver-switch',
-          onTap: () => onSaverModeChanged!(!saverMode),
+          onTap: onSaverModeChanged,
         ),
       if (onFillScreenChanged != null)
         PlayerSidePanelTile(
